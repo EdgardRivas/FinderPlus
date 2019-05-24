@@ -1,5 +1,6 @@
 package com.apps.er.project;
 
+import android.annotation.SuppressLint;
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -10,6 +11,7 @@ import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -22,256 +24,145 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.EditText;
-import android.widget.Toast;
+import android.widget.Button;
+import android.widget.TextView;
 
-import com.android.volley.Request;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
-import com.android.volley.toolbox.StringRequest;
-import com.getbase.floatingactionbutton.FloatingActionButton;
-import com.getbase.floatingactionbutton.FloatingActionsMenu;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.maps.SupportMapFragment;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-public class MainActivity extends AppCompatActivity implements LocationListener, OnMapReadyCallback, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, GoogleMap.OnMarkerDragListener, GoogleMap.OnMapLongClickListener, GoogleMap.OnMarkerClickListener
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+
+import toan.android.floatingactionmenu.FloatingActionButton;
+import toan.android.floatingactionmenu.FloatingActionsMenu;
+
+public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, LocationListener, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, GoogleMap.OnMarkerDragListener, GoogleMap.OnMapLongClickListener, GoogleMap.OnMarkerClickListener
 {
+    // APIKey que conseguimos en la consola de desarrolladores de Google.
+    private String key = "AIzaSyB2ga0iCOSfLHNc9tEQM7qmcs7h9Zfr26s";
+    // Variables para el modal.
+    private AlertDialog.Builder builder;
+    private LayoutInflater layoutInflater;
+    private AlertDialog alertDialog;
+    private ProgressDialog progressDialog;
+    // Variables que va a usar el mapa.
     private double longitude;
     private double latitude;
-    private LatLng loc;
-    private LocationManager locationManager;
-    private Location location;
-    private Criteria criteria;
-    private GoogleMap googleMap;
-    private FloatingActionsMenu options;
-    private FloatingActionButton search, locate, run;
-    private View background;
-    private ProgressDialog dialog;
+    private float zoomLevel;
+    private GoogleMap map;
+    // Variables para la solicitud de lugares cercanos con la Api de Google
+    GoogleApiClient client;
+    LocationRequest request;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState)
-    {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.main);
 
-        MapFragment mapFragment = (MapFragment) getFragmentManager().findFragmentById(R.id.map);
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
+        assert mapFragment != null;
         mapFragment.getMapAsync(this);
+        zoomLevel = 15.0f;
 
-        background = findViewById(R.id.background);
-        options = (FloatingActionsMenu) findViewById(R.id.options);
-        search = (FloatingActionButton) findViewById(R.id.search);
-        locate = (FloatingActionButton) findViewById(R.id.locate);
-        run = (FloatingActionButton) findViewById(R.id.run);
+        // Instanciamos los botones.
+        final FloatingActionsMenu options = findViewById(R.id.options);
+        FloatingActionButton locate = findViewById(R.id.locate);
+        FloatingActionButton search = findViewById(R.id.search);
 
-        options.setOnFloatingActionsMenuUpdateListener(new FloatingActionsMenu.OnFloatingActionsMenuUpdateListener() {
+        // Evento al hacer click en el botón localizar.
+        locate.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onMenuExpanded() {
-                background.setVisibility(View.VISIBLE);
-                background.setEnabled(false);
-            }
-
-            @Override
-            public void onMenuCollapsed() {
-                background.setVisibility(View.GONE);
-                background.setEnabled(true);
+            public void onClick(View view) {
+                getCurrentLocation(map);
+                options.collapse();
             }
         });
-        search.setOnClickListener(new View.OnClickListener()
-        {
+        // Evento al hacer click en el botón buscar.
+        search.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onClick(View view)
-            {
-                dialog = new ProgressDialog(MainActivity.this);
-                dialog.setTitle("Please Wait");
-                dialog.setMessage("Searching");
-                dialog.show();
-
-                StringRequest stringRequest = new StringRequest(Request.Method.GET, Connection.getPoints, new Response.Listener<String>()
-                {
-                    @Override
-                    public void onResponse(String response)
-                    {
-                        dialog.dismiss();
-                        try
-                        {
-                            JSONArray jsonArray = new JSONArray(response);
-                            JSONObject jsonObject = jsonArray.getJSONObject(0);
-                            String code = jsonObject.getString("idSucursal");
-
-                            if(code.equals("0"))
-                            {
-                                dialog.setTitle("Outputs");
-                                dialog.setMessage("No matchets found");
-                                dialog.show();
-                            }
-                            else
-                            {
-                                for (int i = 0; i < jsonArray.length(); i++)
-                                {
-                                    try
-                                    {
-                                        JSONObject object = jsonArray.getJSONObject(i);
-                                        Integer iId = object.getInt("idSucursal");
-                                        String iSuc = object.getString("sucursal");
-                                        Double iLat = object.getDouble("lat");
-                                        Double iLon = object.getDouble("lon");
-                                        drawPoint(iSuc, iLat, iLon);
-                                    }
-                                    catch (JSONException e)
-                                    {
-
-                                    }
-                                }
-                            }
-                        }
-                        catch (JSONException e)
-                        {
-
-                        }
-                    }
-                }, new Response.ErrorListener()
-                {
-                    @Override
-                    public void onErrorResponse(VolleyError volleyError)
-                    {
-                        dialog.dismiss();
-                        Toast.makeText(MainActivity.this, volleyError.getMessage(), Toast.LENGTH_SHORT).show();
-                    }
-                });
-                Singleton.getInstance(MainActivity.this).addToRequest(stringRequest);
-            }
-        });
-        locate.setOnClickListener(new View.OnClickListener()
-        {
-            @Override
-            public void onClick(View view)
-            {
-                getCurrentLocation(googleMap);
-            }
-        });
-
-        run.setOnClickListener(new View.OnClickListener()
-        {
-            @Override
-            public void onClick(View view)
-            {
-                run(view);
+            public void onClick(View view) {
+                search();
+                options.collapse();
             }
         });
         boolean splash = getPreferences(getApplicationContext());
-        if(splash)
-        {
+        if(splash) {
             Intent iS = new Intent(MainActivity.this, SplashScreen.class);
             startActivity(iS);
             setPreferences(getApplicationContext(), false);
         }
     }
 
-    private void run(View view)
-    {
-        final View v = view;
-        AlertDialog.Builder alertDialog = new AlertDialog.Builder(this);
-        LayoutInflater layoutInflater = this.getLayoutInflater();
-        final View dialogView = layoutInflater.inflate(R.layout.recover_account, null);
-        final EditText editText = dialogView.findViewById(R.id.txtEmail);
-        alertDialog.setView(dialogView);
-        alertDialog.setTitle(getResources().getString(R.string.oRecover));
-        alertDialog.setPositiveButton(getResources().getString(R.string.ok), new DialogInterface.OnClickListener()
-        {
-            public void onClick(DialogInterface dialog, int whichButton)
-            {
-                String loc = editText.getText().toString();
-                String[] parts = loc.split(",");
-                String p1 = parts[1-1];
-                String p2 = parts[2-1];
-                double l1 = Double.parseDouble(p1);
-                double l2 = Double.parseDouble(p2);
-                drawPoint(loc, l1, l2);
-                Snackbar.make(v, "Ok", Snackbar.LENGTH_LONG).setAction("Action", null).show();
-            }
-        });
-        alertDialog.setNegativeButton(getResources().getString(R.string.cancel), new DialogInterface.OnClickListener()
-        {
-            public void onClick(DialogInterface dialog, int whichButton)
-            {
-                //Nothing
-            }
-        });
-
-        AlertDialog dialog = alertDialog.create();
-        dialog.setCancelable(false);
-        dialog.show();
-    }
-
-    public void setPreferences(Context context, Boolean splash)
-    {
-        SharedPreferences spSplash = context.getSharedPreferences("SPLASH_SCREEN", MODE_PRIVATE);
-        SharedPreferences.Editor editor;
-        editor = spSplash.edit();
-        editor.putBoolean("FIRST_TIME", splash);
-        editor.apply();
-    }
-
-    public boolean getPreferences(Context context)
-    {
-        SharedPreferences sharedPreferences = context.getSharedPreferences("SPLASH_SCREEN", MODE_PRIVATE);
-        return sharedPreferences.getBoolean("FIRST_TIME", true);
-    }
-
     @Override
-    public boolean onCreateOptionsMenu(Menu menu)
-    {
+    public boolean onCreateOptionsMenu(Menu menu) {
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.menu_main, menu);
         return super.onCreateOptionsMenu(menu);
     }
 
     @Override
-    public boolean onOptionsItemSelected(MenuItem item)
-    {
-        switch (item.getItemId())
-        {
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
             case R.id.settings:
-                //Intent iS = new Intent(this, Settings.class);
-                //startActivity(iS);
+                Intent iS = new Intent(this, Settings.class);
+                startActivity(iS);
                 return true;
-            case R.id.login:
-                Intent iL = new Intent(this, Login.class);
-                startActivity(iL);
-                return true;
-            case R.id.contact:
-                //Intent iC = new Intent(this, Contact.class);
-                //startActivity(iC);
+            case R.id.about:
+                Intent iA = new Intent(this, About.class);
+                startActivity(iA);
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
     }
-    private void getCurrentLocation(GoogleMap map)
-    {
+
+    @Override
+    public void onMapReady(GoogleMap googleMap) {
+        map = googleMap;
+        map.setMinZoomPreference(12.0f);
+        map.setMaxZoomPreference(18.0f);
+        //buildGoogleClient(); // Otra forma de obtener la ubicación actual.
+        getCurrentLocation(map);
+    }
+
+    private void buildGoogleClient(){
+        if(client != null ){
+            client = new GoogleApiClient.Builder(this)
+                    .addApi(LocationServices.API)
+                    .addConnectionCallbacks(this)
+                    .addOnConnectionFailedListener(this).build();
+            client.connect();
+        }
+    }
+
+    // Método para obtener la ubicación actual (localizar).
+    private void getCurrentLocation(GoogleMap map) {
         map.clear();
-        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
-        {
-            //map.setMyLocationEnabled(true);
-            //map.getUiSettings().setMyLocationButtonEnabled(true);
-            locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
-            criteria = new Criteria();
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            LocationManager locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+            Criteria criteria = new Criteria();
             criteria.setAccuracy(Criteria.ACCURACY_COARSE);
             criteria.setPowerRequirement(Criteria.ACCURACY_COARSE);
             String provider = locationManager.getBestProvider(criteria, true);
-            location = locationManager.getLastKnownLocation(provider);
+            Location location = locationManager.getLastKnownLocation(provider);
             locationManager.requestLocationUpdates(provider, 10000, 15, this);
             latitude = location.getLatitude();
             longitude = location.getLongitude();
@@ -280,103 +171,220 @@ public class MainActivity extends AppCompatActivity implements LocationListener,
         }
     }
 
-    @Override
-    public void onMapReady(GoogleMap map)
-    {
-        googleMap = map;
-        //googleMap.setMyLocationEnabled(true);
-        //googleMap.getUiSettings().setMyLocationButtonEnabled(true);
-        String title = "New York City";
-        double lat = 40.730610;
-        double lon = -73.935242;
-        //String title = "UNICAES";
-        //double lat = 13.984288016871906;
-        //double lon = -89.54727340841293;
-        drawPoint(title, lat, lon);
+    // M+etodo para crear un puntero en el mapa.
+    private void drawPoint(String title, double lat, double lon) {
+        LatLng loc = new LatLng(lat, lon);
+        map.setMapType(GoogleMap.MAP_TYPE_HYBRID);
+        map.addMarker(new MarkerOptions().position(loc).title(title));
+        map.moveCamera(CameraUpdateFactory.newLatLng(loc));
+        map.animateCamera(CameraUpdateFactory.newLatLngZoom(loc, zoomLevel));
+        map.getUiSettings().setZoomControlsEnabled(true);
+        map.setOnMapLongClickListener(this);
+        map.setOnMarkerDragListener(this);
     }
 
-    private void drawPoint(String title, double lat, double lon)
-    {
-        loc = new LatLng(lat,lon);
-        googleMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
-        googleMap.addMarker(new MarkerOptions().position(loc).title(title));
-        googleMap.moveCamera(CameraUpdateFactory.newLatLng(loc));
-        googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(loc, 16.0f));
-        googleMap.getUiSettings().setZoomControlsEnabled(true);
-        googleMap.setOnMapLongClickListener(this);
-        googleMap.setOnMarkerDragListener(this);
+    // Método para buscar.
+    private void search() {
+        // Instanciamos el modal.
+        builder = new AlertDialog.Builder(this);
+        layoutInflater = this.getLayoutInflater();
+        @SuppressLint("InflateParams")
+        final View dialogView = layoutInflater.inflate(R.layout.modal_search, null);
+        final TextView txtSearch = dialogView.findViewById(R.id.txtSearch);
+        // Añadimos la vista, el título, y los botonoes al modal.
+        builder.setView(dialogView);
+        builder.setTitle("Search nearby places");
+        builder.setPositiveButton("OK", null);
+        builder.setNegativeButton("Cancel", null);
+        alertDialog = this.builder.create();
+        alertDialog.setOnShowListener(new DialogInterface.OnShowListener() {
+            @Override
+            public void onShow(DialogInterface dialogInterface) {
+                Button btnCancel = alertDialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+                Button btnOk = alertDialog.getButton(AlertDialog.BUTTON_POSITIVE);
+                btnCancel.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        alertDialog.dismiss();
+                    }
+                });
+                // Botón que genera la consuita dependiendo del query que el usuario haya ingresado.
+                btnOk.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        String query = txtSearch.getText().toString().trim();
+                        StringBuilder stringBuilder = new StringBuilder("https://maps.googleapis.com/maps/api/place/nearbysearch/json?");
+                        stringBuilder.append("location="+latitude+","+longitude);
+                        stringBuilder.append("&radius="+28000);
+                        //stringBuilder.append("&rankby="+"distance");
+                        //stringBuilder.append("&type="+"car_repair");
+                        stringBuilder.append("&keyword="+query);
+                        stringBuilder.append("&key="+key);
+                        String url = stringBuilder.toString();
+                        Snackbar.make(view, "Fetching results from query: " + query, Snackbar.LENGTH_LONG).setAction("Action", null).show();
+                        Object[] dataTransfer;
+                        dataTransfer = new Object[2];
+                        dataTransfer[0] = map;
+                        dataTransfer[1] = url;
+                        // Tarea Asíncrona que nos permite ejecutar una petición a los servidores de Google
+                        // en segundo plano mientras estamos en la actividad principal con el modal
+                        // y que devuelve un JSON de los resultados.
+                        new GetNearbyPlaces().execute(dataTransfer);
+                    }
+                });
+            }
+        });
+        alertDialog.setCancelable(false);
+        alertDialog.setCanceledOnTouchOutside(false);
+        alertDialog.show();
     }
 
     @Override
-    public void onConnected(@Nullable Bundle bundle)
-    {
-        getCurrentLocation(googleMap);
+    public void onConnected(@Nullable Bundle bundle) {
+        getCurrentLocation(map);
     }
 
     @Override
-    public void onConnectionSuspended(int i)
-    {
-
-    }
-
-    @Override
-    public void onConnectionFailed(@NonNull ConnectionResult connectionResult)
-    {
+    public void onConnectionSuspended(int i) {
 
     }
 
     @Override
-    public void onMapLongClick(LatLng latLng)
-    {
-        googleMap.addMarker(new MarkerOptions().position(latLng).draggable(true));
+    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+
     }
 
     @Override
-    public boolean onMarkerClick(Marker marker)
-    {
+    public void onMapLongClick(LatLng latLng) {
+        //map.addMarker(new MarkerOptions().position(latLng).draggable(true));
+    }
+
+    @Override
+    public boolean onMarkerClick(Marker marker) {
         return false;
     }
 
     @Override
-    public void onMarkerDragStart(Marker marker)
-    {
-        Toast.makeText(this, "onMarkerDragStart", Toast.LENGTH_SHORT).show();
+    public void onMarkerDragStart(Marker marker) {
+        //Toast.makeText(this, "onMarkerDragStart", Toast.LENGTH_SHORT).show();
     }
 
     @Override
-    public void onMarkerDrag(Marker marker)
-    {
-        Toast.makeText(this, "onMarkerDrag", Toast.LENGTH_SHORT).show();
+    public void onMarkerDrag(Marker marker) {
+        //Toast.makeText(this, "onMarkerDrag", Toast.LENGTH_SHORT).show();
     }
 
     @Override
-    public void onMarkerDragEnd(Marker marker)
-    {
-        latitude = marker.getPosition().latitude;
-        longitude = marker.getPosition().longitude;
+    public void onMarkerDragEnd(Marker marker) {
+        //latitude = marker.getPosition().latitude;
+        //longitude = marker.getPosition().longitude;
     }
 
     @Override
-    public void onLocationChanged(Location location)
-    {
-
+    public void onLocationChanged(Location location) {
+        //getCurrentLocation(map);
     }
 
     @Override
-    public void onStatusChanged(String s, int i, Bundle bundle)
-    {
+    public void onStatusChanged(String s, int i, Bundle bundle) {
 
     }
 
     @Override
-    public void onProviderEnabled(String s)
-    {
+    public void onProviderEnabled(String s) {
 
     }
 
     @Override
-    public void onProviderDisabled(String s)
-    {
+    public void onProviderDisabled(String s) {
 
+    }
+
+    public void setPreferences(Context context, Boolean splash) {
+        SharedPreferences spSplash = context.getSharedPreferences("SPLASH_SCREEN", MODE_PRIVATE);
+        SharedPreferences.Editor editor;
+        editor = spSplash.edit();
+        editor.putBoolean("FIRST_TIME", splash);
+        editor.apply();
+    }
+
+    public boolean getPreferences(Context context) {
+        SharedPreferences sharedPreferences = context.getSharedPreferences("SPLASH_SCREEN", MODE_PRIVATE);
+        return sharedPreferences.getBoolean("FIRST_TIME", true);
+    }
+    // Clase que ejecuta la petición a los servidores de Google.
+    @SuppressLint("StaticFieldLeak")
+    class GetNearbyPlaces extends AsyncTask<Object, String, String> {
+
+        // Variables para un nuevo mapa.
+        GoogleMap nMap;
+        String url;
+        InputStream is;
+        BufferedReader bufferedReader;
+        StringBuilder stringBuilder;
+        String data;
+        // Método que se ejcuta en segundo plano que recibe el query del usuario y lo envía por http para la consulta.
+        @Override
+        protected String doInBackground(Object... objects) {
+            nMap = (GoogleMap) objects[0];
+            url = (String) objects[1];
+            try {
+                URL url_work = new URL(url);
+                HttpURLConnection httpURLConnection = (HttpURLConnection) url_work.openConnection();
+                httpURLConnection.connect();
+                is = httpURLConnection.getInputStream();
+                bufferedReader = new BufferedReader(new InputStreamReader(is));
+                String line = "";
+                stringBuilder = new StringBuilder();
+                while((line = bufferedReader.readLine())!=null) {
+                    stringBuilder.append(line);
+                }
+                data = stringBuilder.toString();
+            } catch (MalformedURLException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return data;
+        }
+
+        // Método que al obtener los resultados los interpreta y los muestra convirtiéndolos en puntos en el mapa.
+        @Override
+        protected void onPostExecute(String s) {
+            // Se cierra el modal de búsqueda.
+            alertDialog.dismiss();
+            try {
+                // Variables para almacenar el objeto JSON que es devuelto por Google.
+                JSONObject parenObject = new JSONObject(s);
+                JSONArray resultsArray = parenObject.getJSONArray("results");
+
+                // Instrucción "for" que itera el objeto para obtener en variables los campos necesarios a mostrar al usuario.
+                for (int i = 0; i < resultsArray.length(); i++) {
+
+                    JSONObject jsonObject = resultsArray.getJSONObject(i);
+                    JSONObject locationObj = jsonObject.getJSONObject("geometry").getJSONObject("location");
+                    String lat = locationObj.getString("lat");
+                    String lng = locationObj.getString("lng");
+
+                    JSONObject nameObject = resultsArray.getJSONObject(i);
+                    String name = nameObject.getString("name");
+
+                    // Variables de longitud y latitud que se le pasan al nuevo mapa
+                    // para crear los puntos de las ubicaciones encontradas
+                    LatLng latLng = new LatLng(Double.parseDouble(lat), Double.parseDouble(lng));
+                    MarkerOptions markerOptions = new MarkerOptions();
+                    markerOptions.title(name);
+                    markerOptions.position(latLng);
+
+                    // Se añaden las ubicaciones y sus datos al mapa
+                    // y se hace un zoom inverso para mayor comodidad.
+                    nMap.addMarker(markerOptions);
+                    zoomLevel = 12.0f;
+                    nMap.animateCamera(CameraUpdateFactory.zoomTo(zoomLevel));
+                }
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }
     }
 }
