@@ -4,18 +4,12 @@
     tools:context=".MainActivity">
     <item
         android:id="@+id/settings"
-        android:title="@string/oSettings"
+        android:title="Settings"
         app:showAsAction="never"
-        android:icon="@drawable/settings"
         android:orderInCategory="1" />
     <item
-        android:id="@+id/login"
-        android:title="@string/oLogin"
+        android:id="@+id/about"
+        android:title="About Us"
         app:showAsAction="never"
         android:orderInCategory="2" />
-    <item
-        android:id="@+id/contact"
-        android:title="@string/oAbout"
-        app:showAsAction="never"
-        android:orderInCategory="3" />
 </menu>
