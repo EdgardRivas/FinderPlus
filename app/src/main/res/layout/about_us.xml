@@ -18,7 +18,7 @@
         android:weightSum="100">
 
         <TextView
-            android:layout_weight="75"
+            android:layout_weight="40"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:layout_gravity="center"
@@ -28,8 +28,14 @@
             android:textColor="@color/colorPrimary"
             android:textSize="35sp" />
 
+        <ImageView
+            android:layout_weight="20"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:src="@drawable/unicaes" />
+
         <TextView
-            android:layout_weight="25"
+            android:layout_weight="40"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:layout_gravity="center"
