@@ -1,18 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#3BA0BF</color>
-    <color name="colorPrimaryDark">#252525</color>
-    <color name="colorAccent">#8BC34A</color>
+    <color name="colorPrimary">@color/blue</color>
+    <color name="colorPrimaryDark">@color/black</color>
+    <color name="colorAccent">@color/green</color>
 
-    <color name="background">#55000000</color>
-    <color name="WhatsApp">#ff075e55</color>
-    <color name="Facebook">#ff4262a2</color>
+    <color name="white">#f2f2f2</color>
+    <color name="white_alt">#f7f9f9</color>
+    <color name="gray">#d5dbdb</color>
+    <color name="gray_alt">#cacfd2</color>
+    <color name="black">#1b2631</color>
+    <color name="black_alt">#17202a</color>
 
-    <color name="green">#ff00796B</color>
-    <color name="cyan">#ff26A69A</color>
-    <color name="gold">#ffedcc61</color>
+    <color name="red">#e74c3c</color>
+    <color name="red_alt">#a93226</color>
+    <color name="purple">#a569bd</color>
+    <color name="purple_alt">#8e44ad</color>
+    <color name="blue">#2471a3</color>
+    <color name="blue_alt">#2874a6</color>
 
-    <color name="red">#fff65e3b</color>
-    <color name="orange">#fff59563</color>
-    <color name="salmon">#fff2b179</color>
+    <color name="green">#28b463</color>
+    <color name="green_alt">#1e8449</color>
+    <color name="yellow">#f1c40f</color>
+    <color name="yellow_alt">#d4ac0d</color>
+    <color name="gold">#edcc61</color>
+    <color name="gold_alt">#f2b179</color>
 </resources>
