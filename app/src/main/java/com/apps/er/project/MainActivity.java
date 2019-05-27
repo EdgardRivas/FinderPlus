@@ -1,5 +1,6 @@
 package com.apps.er.project;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.ProgressDialog;
 import android.content.Context;
@@ -16,6 +17,7 @@ import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.Snackbar;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
@@ -50,6 +52,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.security.Permission;
 
 import toan.android.floatingactionmenu.FloatingActionButton;
 import toan.android.floatingactionmenu.FloatingActionsMenu;
@@ -156,7 +159,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     // Método para obtener la ubicación actual (localizar).
     private void getCurrentLocation(GoogleMap map) {
         map.clear();
-        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+        if ((ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) &&
+                (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED)) {
             LocationManager locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
             Criteria criteria = new Criteria();
             criteria.setAccuracy(Criteria.ACCURACY_COARSE);
@@ -168,6 +172,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             longitude = location.getLongitude();
             String title = "YOU ARE HERE!";
             drawPoint(title, latitude, longitude);
+        } else {
+            ActivityCompat.requestPermissions(this, new String[]{ Manifest.permission.ACCESS_FINE_LOCATION}, ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION));
+            ActivityCompat.requestPermissions(this, new String[]{ Manifest.permission.ACCESS_COARSE_LOCATION}, ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION));
         }
     }
 
@@ -312,10 +319,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         SharedPreferences sharedPreferences = context.getSharedPreferences("SPLASH_SCREEN", MODE_PRIVATE);
         return sharedPreferences.getBoolean("FIRST_TIME", true);
     }
+
     // Clase que ejecuta la petición a los servidores de Google.
     @SuppressLint("StaticFieldLeak")
     class GetNearbyPlaces extends AsyncTask<Object, String, String> {
-
         // Variables para un nuevo mapa.
         GoogleMap nMap;
         String url;
@@ -351,6 +358,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         // Método que al obtener los resultados los interpreta y los muestra convirtiéndolos en puntos en el mapa.
         @Override
         protected void onPostExecute(String s) {
+            // Limpiamos el mapa por si habían puntos anteriores.
+            nMap.clear();
+            // Agregar nuestra ubicación actual nuevamente.
+            getCurrentLocation(nMap);
             // Se cierra el modal de búsqueda.
             alertDialog.dismiss();
             try {
